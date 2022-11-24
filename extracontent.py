@@ -3,7 +3,7 @@
 # @Email:  shounak@stanford.edu
 # @Filename: extracontent.py
 # @Last modified by:   shounak
-# @Last modified time: 2022-11-23T21:18:04-08:00
+# @Last modified time: 2022-11-23T21:42:26-08:00
 
 
 def to_hours(series):
@@ -32,3 +32,10 @@ def to_years(series):
 #                                          rsuffix='_common').drop(['Patient Id_common',
 #                                                                   'Patient Id_demographics'], axis=1)
 # JOINED_FINAL.drop(['Age at Death', 'Notes', 'Patient Id'], axis=1, inplace=True)
+
+
+# only_rejected.drop(['ICD10 Code', 'Age'], axis=1, inplace=True)
+# """ONLY GET THE LAST VISIT"""
+# # Only gets the last visit (according to "Date" column)
+# last_visit = data['Diagnoses'].sort_values(['Patient Id', 'Date']).groupby(
+#     'Patient Id').apply(lambda x: x.iloc[[-1]]).reset_index(drop=True)

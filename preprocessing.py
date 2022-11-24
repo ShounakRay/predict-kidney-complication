@@ -3,12 +3,14 @@
 # @Email:  shounak@stanford.edu
 # @Filename: preprocessing.py
 # @Last modified by:   shounak
-# @Last modified time: 2022-11-23T21:18:08-08:00
+# @Last modified time: 2022-11-24T00:11:43-08:00
 
+from collections import Counter
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
 from datetime import datetime
+import seaborn as sns
 
 FPATHS = {
     # 'Notes': 'Data/kds1_clinical_note-002.csv',
@@ -31,6 +33,20 @@ COPY_DATA = data.copy()
 
 def cat_to_num(series):
     return series.astype('category').cat.codes
+
+
+def remove_highly_correlated(df, THRESHOLD=0.5):
+    corr_matrix = df.corr().abs()
+    # Exploratory
+    # _ = sns.heatmap(corr_matrix)
+    # plt.hist(correlation_flat, bins=20)
+    # np.quantile(correlation_flat, 0.95)
+    # Select upper triangle of correlation matrix
+    upper = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(np.bool))
+    # Find features with correlation greater than 0.95
+    to_drop = [column for column in upper.columns if any(upper[column] > 0.5)]
+    print(f'Removing {len(to_drop)} feature(s), highly-correlated.\n{to_drop}')
+    return df.drop(to_drop, axis=1)
 
 
 _ = """
@@ -168,12 +184,6 @@ plt.hist(list(num_nas.values()), bins=20)
 temp = track_code_freq[list(num_nas.keys())].fillna(0.)
 temp.columns = 'CountOf_' + temp.columns
 
-# only_rejected.drop(['ICD10 Code', 'Age'], axis=1, inplace=True)
-# """ONLY GET THE LAST VISIT"""
-# # Only gets the last visit (according to "Date" column)
-# last_visit = data['Diagnoses'].sort_values(['Patient Id', 'Date']).groupby(
-#     'Patient Id').apply(lambda x: x.iloc[[-1]]).reset_index(drop=True)
-
 # NOTE: This dataset is perfect
 data['Diagnoses'] = temp.copy()
 
@@ -194,7 +204,7 @@ temp = temp[['Patient Id', 'Lab', 'Abnormal', 'Age_Result']]
 temp['result_count'] = 1
 lab_aggregations = temp.groupby(['Patient Id', 'Lab', 'Abnormal']).agg({'Age_Result': np.mean,
                                                                         'result_count': np.sum})
-avg_days_per_class = avg_days_per_class.pivot_table('Med_Duration_Days', ['Patient Id'], 'Therapeutic Class')
+# avg_days_per_class = avg_days_per_class.pivot_table('Med_Duration_Days', ['Patient Id'], 'Therapeutic Class')
 
 # Breaks the multi-index hierarchy
 encoded_table = lab_aggregations.pivot_table('result_count', ['Patient Id'], ['Lab', 'Abnormal']).fillna(0)
@@ -215,9 +225,39 @@ _ = """
 ################################## PROECURES ###################################
 """
 
-# Only get PROCEDURES of people that got left and right kidneys transplanted
-transplant_people = data['Procedures'][data['Procedures']
-                                           ['Code'].isin(['0TY10Z0', '0TY00Z0'])].reset_index(drop=True)
+# [null comment] Only get PROCEDURES of people that got left and right kidneys transplanted
+# transplant_people = data['Procedures'][data['Procedures']
+#                                            ['Code'].isin(['0TY10Z0', '0TY00Z0'])].reset_index(drop=True)
+temp = data['Procedures'].copy()
+temp = temp[['Patient Id', 'Code']]
+temp['count'] = 1
+track_code_freq = temp.groupby(['Patient Id', 'Code']).agg({'count': 'count'})
+# 'Age_Of_Diagnosis': 'mean'})
+track_code_freq = track_code_freq.pivot_table('count', ['Patient Id'], 'Code')
+
+num_nas = {}
+for col in track_code_freq.columns:
+    num_nas[col] = track_code_freq[col].isna().sum() / len(track_code_freq[col])
+num_nas = {col: value for col, value in num_nas.items() if value <= 0.85}
+# np.quantile(list(num_nas.values()), 0.5)
+# plt.hist(list(num_nas.values()), bins=20)
+temp = track_code_freq[list(num_nas.keys())].fillna(0.)
+temp.columns = 'CountOf_' + temp.columns
+
+data['Procedures'] = temp.copy()
+
+_ = """
+################################################################################
+################# LAST-PASS: REMOVE HIGHLY CORRELATED VARIABLES ################
+"""
+
+data['MedOrders'] = remove_highly_correlated(data['MedOrders'])
+# Manually removing this correlation
+data['Demographics'].drop(['Recent Height cm', 'Recent Weight kg'], axis=1, inplace=True)
+data['Demographics'] = remove_highly_correlated(data['Demographics'], THRESHOLD=0.5)
+data['Diagnoses'] = remove_highly_correlated(data['Diagnoses'], THRESHOLD=0.5)
+data['Labs'] = remove_highly_correlated(data['Labs'], THRESHOLD=0.5)
+data['Procedures'] = remove_highly_correlated(data['Procedures'], THRESHOLD=0.5)
 
 _ = """
 ################################################################################
@@ -236,13 +276,15 @@ merged_two = merged_one.join(data['Diagnoses'], how='inner', on=['Patient Id'])
 merged_three = merged_two.join(data['Labs'], how='inner', on=['Patient Id'])
 
 """ MERGED THIRD_MERGED + PROCEDURES """  # TODO
-# merged_four = merged_three.join(data['Procedures'], how='inner', on=['Patient Id'])
+merged_four = merged_three.join(data['Procedures'], how='inner', on=['Patient Id'])
 
 
 _ = """
 ################################################################################
 ################################### SAVE FILE ##################################
 """
-# Pending
 
+FINAL_UNCORR = remove_highly_correlated(merged_four, THRESHOLD=0.5)
+FINAL_UNCORR.to_pickle('Data/Example_Core_Dataset.pkl')
+FINAL_UNCORR.to_csv('Data/Example_Core_Dataset.csv')
 # EOF
