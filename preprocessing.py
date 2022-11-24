@@ -3,7 +3,7 @@
 # @Email:  shounak@stanford.edu
 # @Filename: preprocessing.py
 # @Last modified by:   shounak
-# @Last modified time: 2022-11-24T01:03:11-08:00
+# @Last modified time: 2022-11-24T02:16:09-08:00
 
 import pandas as pd
 # import matplotlib.pyplot as plt
@@ -51,7 +51,7 @@ def cat_to_num(series):
     return series.astype('category').cat.codes
 
 
-def remove_highly_correlated(df, THRESHOLD=0.5):
+def remove_highly_correlated(df, THRESHOLD=0.5, skip=[]):
     corr_matrix = df.corr().abs()
     # Exploratory
     # _ = sns.heatmap(corr_matrix)
@@ -60,7 +60,7 @@ def remove_highly_correlated(df, THRESHOLD=0.5):
     # Select upper triangle of correlation matrix
     upper = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(np.bool))
     # Find features with correlation greater than 0.95
-    to_drop = [column for column in upper.columns if any(upper[column] > 0.5)]
+    to_drop = [col for col in upper.columns if any(upper[col] > 0.5) if col not in skip]
     print(f'Removing {len(to_drop)} feature(s), highly-correlated.\n{to_drop}')
     return df.drop(to_drop, axis=1)
 
@@ -157,6 +157,7 @@ data['Demographics']['Smoking Hx'] = data['Demographics']['Smoking Hx'].str[0].a
 # Sanitation: correct current ages of people that are deceased
 data['Demographics']['Current_Age'] = data['Demographics'].apply(lambda row: row['Current_Age']
                                                                  if row['Deceased'] == 0 else -1, axis=1)
+
 # NOTE: THIS IS A PERFECT DATASET
 data['Demographics'] = data['Demographics'].select_dtypes(include=np.number)
 
@@ -174,11 +175,17 @@ to_remove_diagnoses = ['Source',
 data['Diagnoses'].drop(to_remove_diagnoses, axis=1, inplace=True)
 # The age associated with a diagnosis is not necessarily the same as the current age of patient
 data['Diagnoses']['Age_Of_Diagnosis'] = data['Diagnoses']['Age']
+
+"""NOTE: Important; engineering TERM for our prediction_column,
+         time until complication (if at all) here"""
 # T86.11 is the code for kidney transplant rejection. Only get those specific diagnoses.
 ppl_final_rejection = data['Diagnoses'][data['Diagnoses']['ICD10 Code'] == 'T86.11'].reset_index(drop=True)
-ppl_that_got_rejected = ppl_final_rejection['Patient Id'].unique()
-# data['Diagnoses']['Rejected'] = data['Diagnoses']['Patient Id'].isin(ppl_that_got_rejected)
+ppl_final_rejection.drop_duplicates(subset=['Patient Id'], keep='first', inplace=True, ignore_index=True)
+TIME_COMPLICATION_MAPPING = ppl_final_rejection.set_index('Patient Id')['Age_Of_Diagnosis'].to_dict()
+# NOTE: `VAL_FOR_NO_COMPLICATION_YES` somewhat arbitrary, just ensured nobody had this value
+VAL_FOR_NO_COMPLICATION_YES = 100
 
+""" SEGMENT 2 """
 temp = data['Diagnoses'].copy()
 
 # Per patient, generate count of each ICD10 Code
@@ -200,6 +207,13 @@ num_nas = {col: value for col, value in num_nas.items() if value <= 0.85}
 # plt.hist(list(num_nas.values()), bins=20)
 temp = track_code_freq[list(num_nas.keys())].fillna(0.)
 temp.columns = 'CountOf_' + temp.columns
+temp.reset_index(inplace=True)
+
+""" SEGMENT 3 """
+# Now add the column we engineered:
+temp['Age_of_Complication'] = temp['Patient Id'].apply(
+    lambda x: TIME_COMPLICATION_MAPPING.get(x, VAL_FOR_NO_COMPLICATION_YES))
+# temp['Age_of_Complication'].hist()
 
 # NOTE: This dataset is perfect
 data['Diagnoses'] = temp.copy()
@@ -240,15 +254,14 @@ _ = """
 ################################## PROCEDURES ##################################
 """
 
-# [null comment] Only get PROCEDURES of people that got left and right kidneys transplanted
-# transplant_people = data['Procedures'][data['Procedures']
-#                                            ['Code'].isin(['0TY10Z0', '0TY00Z0'])].reset_index(drop=True)
 temp = data['Procedures'].copy()
 temp = temp[['Patient Id', 'Code']]
 temp['count'] = 1
 track_code_freq = temp.groupby(['Patient Id', 'Code']).agg({'count': 'count'})
 # 'Age_Of_Diagnosis': 'mean'})
 track_code_freq = track_code_freq.pivot_table('count', ['Patient Id'], 'Code')
+
+# TODO: Need to find time of transplant
 
 num_nas = {}
 for col in track_code_freq.columns:
@@ -260,6 +273,13 @@ temp = track_code_freq[list(num_nas.keys())].fillna(0.)
 temp.columns = 'CountOf_' + temp.columns
 
 data['Procedures'] = temp.copy()
+
+_ = """
+################################################################################
+########################### FINAL, PRE-MERGE DELETIONS #########################
+################################################################################
+"""
+data['Demographics'].drop(['Notes'], axis=1, inplace=True)
 
 _ = """
 ################################################################################
@@ -287,7 +307,9 @@ merged_one = data['MedOrders'].join(data['Demographics'], how='inner', on=[
 merged_one.drop('Patient Id_DELETE', axis=1, inplace=True)
 
 """ MERGED FIRST_MERGED + DIAGNOSES """
-merged_two = merged_one.join(data['Diagnoses'], how='inner', on=['Patient Id'])
+merged_two = merged_one.join(data['Diagnoses'], how='inner', on=['Patient Id'],
+                             lsuffix='_DELETE', rsuffix='demo_')
+merged_two.drop('Patient Id_DELETE', axis=1, inplace=True)
 
 """ MERGED SECOND_MERGED + LABS """
 merged_three = merged_two.join(data['Labs'], how='inner', on=['Patient Id'])
@@ -295,15 +317,31 @@ merged_three = merged_two.join(data['Labs'], how='inner', on=['Patient Id'])
 """ MERGED THIRD_MERGED + PROCEDURES """  # TODO
 merged_four = merged_three.join(data['Procedures'], how='inner', on=['Patient Id'])
 
+_ = """
+################################################################################
+########################## FINAL, POST-MERGE DELETIONS #########################
+################################################################################
+"""
+merged_four.drop(['Patient Iddemo_', 'CountOf_nan'], axis=1, inplace=True)
+merged_four['Age_of_Complication'] = merged_four.apply(lambda row: row['Age at Death']
+                                                       if bool(row['Deceased']) else row['Age_of_Complication'])
+
+merged_four['Time_Until_Complication'] = merged_four['Age'] - merged_four['Age_of_Complication']
+list(merged_four.columns)
 
 _ = """
 ################################################################################
 ################################### SAVE FILE ##################################
 ################################################################################
 """
-
-
+# Final pass to collectively analyse all columns and remove high correlations
 FINAL_UNCORR = remove_highly_correlated(merged_four, THRESHOLD=0.5)
+# REORDER COLUMNS SO `Time_Until_Complication` IS AT THE VERY END
+new_order = [c for c in list(FINAL_UNCORR) if c not in ['Patient Id',
+                                                        'Time_Until_Complication']
+             ] + ['Time_Until_Complication']
+FINAL_UNCORR = FINAL_UNCORR[new_order]
+# Save
 FINAL_UNCORR.to_pickle(SAVE_PATH_FULL + '.pkl')
 FINAL_UNCORR.to_csv(SAVE_PATH_FULL + '.csv')
 # EOF

@@ -3,7 +3,7 @@
 # @Email:  shounak@stanford.edu
 # @Filename: extracontent.py
 # @Last modified by:   shounak
-# @Last modified time: 2022-11-23T21:42:26-08:00
+# @Last modified time: 2022-11-24T01:37:39-08:00
 
 
 def to_hours(series):
@@ -16,6 +16,7 @@ def to_days(series):
 
 def to_years(series):
     return series.dt.total_seconds() / (60 * 60 * 24. * 365.25)
+
 
 # merged = transplant_people.join(data['Labs'], how='inner', on=['Patient Id'],
 #                                 lsuffix='_transplant', rsuffix='_complication')
