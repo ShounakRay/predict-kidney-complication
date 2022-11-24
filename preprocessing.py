@@ -3,31 +3,48 @@
 # @Email:  shounak@stanford.edu
 # @Filename: preprocessing.py
 # @Last modified by:   shounak
-# @Last modified time: 2022-11-24T00:12:56-08:00
+# @Last modified time: 2022-11-24T01:03:11-08:00
 
 import pandas as pd
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 import numpy as np
 from datetime import datetime
 # import seaborn as sns
 
-FPATHS = {
-    # 'Notes': 'Data/kds1_clinical_note-002.csv',
-    'Demographics': 'Data/kds1_demographics.csv',
-    'Diagnoses': 'Data/kds1_diagnoses.csv',
-    'Labs': 'Data/kds1_labs-001.csv',
-    'MedOrders': 'Data/kds1_med_orders.csv',
-    # 'Codebook': 'Data/kds1_patientCodebook.csv',
-    'Procedures': 'Data/kds1_procedures.csv'}
+# FPATHS = {
+#     # 'Notes': 'Data/Incomplete Constituents/kds1_clinical_note-002.csv',
+#     'Demographics': 'Data/Incomplete Constituents/kds1_demographics.csv',
+#     'Diagnoses': 'Data/Incomplete Constituents/kds1_diagnoses.csv',
+#     'Labs': 'Data/Incomplete Constituents/kds1_labs-001.csv',
+#     'MedOrders': 'Data/Incomplete Constituents/kds1_med_orders.csv',
+#     # 'Codebook': 'Data/Incomplete Constituents/kds1_patientCodebook.csv',
+#     'Procedures': 'Data/Incomplete Constituents/kds1_procedures.csv'}
+#
+# SAVE_PATH = 'Data/Merged Incomplete/Example_Core_Dataset'
+
+FPATHS_FULL = {
+    'Demographics': 'Data/Complete Constituents/all_demographics.csv',
+    'Diagnoses': 'Data/Complete Constituents/all_diagnoses.csv',
+    'Labs': 'Data/Complete Constituents/all_labs.csv',
+    'MedOrders': 'Data/Complete Constituents/all_medorders.csv',
+    'Procedures': 'Data/Complete Constituents/all_procedures.csv'}
+
+SAVE_PATH_FULL = 'Data/Merged Complete/Example_Core_Dataset'
 
 data = {}
-for label, path in FPATHS.items():
+for label, path in FPATHS_FULL.items():
     data[label] = pd.read_csv(path).infer_objects()
     print(f'Ingested "{label}" dataset.')
 COPY_DATA = data.copy()
 
 # data['Codebook'] maps patient names to MRN code
 # data['Notes'] has patient clininal meeting notes
+
+_ = """
+################################################################################
+############################# FUNCTION DEFINITIONS #############################
+################################################################################
+"""
 
 
 def cat_to_num(series):
@@ -50,6 +67,9 @@ def remove_highly_correlated(df, THRESHOLD=0.5):
 
 _ = """
 ################################################################################
+############################# DATA PRE-PROCESSING ##############################
+################################################################################
+
 ################################# MEDICINE HIST ################################
 """
 
@@ -71,7 +91,7 @@ N – Starting having medication X years ago
 intially_remove_these = ['Sig', 'Route', 'Disp', 'Unit', 'Refills',
                          'Frequency', 'Number of Times', 'Order Status',
                          'Order Class', 'Order Mode', 'Prescribing Provider',
-                         'PatEncCsnId', 'Order Date', 'Order Age']
+                         'PatEncCsnCoded', 'Order Date', 'Order Age']
 temp.drop(intially_remove_these, axis=1, inplace=True)
 
 # Engineer duration of consumption
@@ -108,8 +128,7 @@ data['MedOrders'] = avg_days_per_class.copy()
 
 
 _ = """
-################################################################################
-################################# DEMORGAPHICS #################################
+################################# DEMOGRAPHICS #################################
 """
 
 to_remove_demographics = ['Disposition',
@@ -142,14 +161,13 @@ data['Demographics']['Current_Age'] = data['Demographics'].apply(lambda row: row
 data['Demographics'] = data['Demographics'].select_dtypes(include=np.number)
 
 _ = """
-################################################################################
 ################################### DIAGNOSES ##################################
 """
 
 to_remove_diagnoses = ['Source',
                        'ICD9 Code',
                        'Billing Provider',
-                       'PatEncCsnId',
+                       'PatEncCsnCoded',
                        'Type',
                        'Description',
                        'Performing Provider']
@@ -179,7 +197,7 @@ for col in track_code_freq.columns:
     num_nas[col] = track_code_freq[col].isna().sum() / len(track_code_freq[col])
 num_nas = {col: value for col, value in num_nas.items() if value <= 0.85}
 # np.quantile(list(num_nas.values()), 0.5)
-plt.hist(list(num_nas.values()), bins=20)
+# plt.hist(list(num_nas.values()), bins=20)
 temp = track_code_freq[list(num_nas.keys())].fillna(0.)
 temp.columns = 'CountOf_' + temp.columns
 
@@ -187,14 +205,13 @@ temp.columns = 'CountOf_' + temp.columns
 data['Diagnoses'] = temp.copy()
 
 _ = """
-################################################################################
 ##################################### LABS #####################################
 """
 
 to_remove_labs = ['Order Date',
                   'Result Date',
                   'Authorizing Provider',
-                  'PatEncCsnId']
+                  'PatEncCsnCoded']
 data['Labs'].drop(to_remove_labs, axis=1, inplace=True)
 temp = data['Labs'].copy()
 temp = temp.dropna(subset=['Abnormal'])
@@ -220,8 +237,7 @@ encoded_table = encoded_table[most_common_columns]
 data['Labs'] = encoded_table.copy()
 
 _ = """
-################################################################################
-################################## PROECURES ###################################
+################################## PROCEDURES ##################################
 """
 
 # [null comment] Only get PROCEDURES of people that got left and right kidneys transplanted
@@ -248,6 +264,7 @@ data['Procedures'] = temp.copy()
 _ = """
 ################################################################################
 ################# LAST-PASS: REMOVE HIGHLY CORRELATED VARIABLES ################
+################################################################################
 """
 
 data['MedOrders'] = remove_highly_correlated(data['MedOrders'])
@@ -261,6 +278,7 @@ data['Procedures'] = remove_highly_correlated(data['Procedures'], THRESHOLD=0.5)
 _ = """
 ################################################################################
 ################################### MERGE ##################################
+################################################################################
 """
 
 """MERGE MEDICAL HISTORY + DEMOGRAPHICS"""
@@ -281,9 +299,11 @@ merged_four = merged_three.join(data['Procedures'], how='inner', on=['Patient Id
 _ = """
 ################################################################################
 ################################### SAVE FILE ##################################
+################################################################################
 """
 
+
 FINAL_UNCORR = remove_highly_correlated(merged_four, THRESHOLD=0.5)
-FINAL_UNCORR.to_pickle('Data/Example_Core_Dataset.pkl')
-FINAL_UNCORR.to_csv('Data/Example_Core_Dataset.csv')
+FINAL_UNCORR.to_pickle(SAVE_PATH_FULL + '.pkl')
+FINAL_UNCORR.to_csv(SAVE_PATH_FULL + '.csv')
 # EOF

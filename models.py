@@ -3,14 +3,17 @@
 # @Email:  shounak@stanford.edu
 # @Filename: models.py
 # @Last modified by:   shounak
-# @Last modified time: 2022-11-22T23:19:14-08:00
+# @Last modified time: 2022-11-24T01:05:35-08:00
 
+import pandas as pd
 from sklearn.linear_model import LinearRegression
 
 _ = """
 ################################################################################
-################################### TRAINING ##################################
+########################## LINEAR REGRESSION TRAINING ##########################
 """
+
+JOINED_FINAL = pd.read_csv('Data/Merged Incomplete/Example_Core_Dataset.csv')
 
 train_size = int(len(JOINED_FINAL) * 0.7)
 reduced = JOINED_FINAL.sample(frac=1).reset_index(drop=True)
