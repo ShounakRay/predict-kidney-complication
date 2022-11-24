@@ -3,10 +3,10 @@
 # @Email:  shounak@stanford.edu
 # @Filename: preprocessing.py
 # @Last modified by:   shounak
-# @Last modified time: 2022-11-24T02:16:09-08:00
+# @Last modified time: 2022-11-24T03:43:35-08:00
 
 import pandas as pd
-# import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
 import numpy as np
 from datetime import datetime
 # import seaborn as sns
@@ -29,7 +29,7 @@ FPATHS_FULL = {
     'MedOrders': 'Data/Complete Constituents/all_medorders.csv',
     'Procedures': 'Data/Complete Constituents/all_procedures.csv'}
 
-SAVE_PATH_FULL = 'Data/Merged Complete/Example_Core_Dataset'
+SAVE_PATH_FULL = 'Data/Merged Complete/Core_Dataset'
 
 data = {}
 for label, path in FPATHS_FULL.items():
@@ -63,6 +63,11 @@ def remove_highly_correlated(df, THRESHOLD=0.5, skip=[]):
     to_drop = [col for col in upper.columns if any(upper[col] > 0.5) if col not in skip]
     print(f'Removing {len(to_drop)} feature(s), highly-correlated.\n{to_drop}')
     return df.drop(to_drop, axis=1)
+
+
+def nan_cols(df):
+    # Sanity Check
+    return {c for c, v in df.isna().any().to_dict().items() if v is True}
 
 
 _ = """
@@ -125,7 +130,7 @@ avg_days_per_class.reset_index(inplace=True)
 
 # NOTE: THIS DATASET IS PERFECT
 data['MedOrders'] = avg_days_per_class.copy()
-
+# nan_cols(data['MedOrders'])
 
 _ = """
 ################################# DEMOGRAPHICS #################################
@@ -160,6 +165,24 @@ data['Demographics']['Current_Age'] = data['Demographics'].apply(lambda row: row
 
 # NOTE: THIS IS A PERFECT DATASET
 data['Demographics'] = data['Demographics'].select_dtypes(include=np.number)
+# nan_cols(data['Demographics'])
+"""
+{'Age at Death',        # Will use this, and then delete
+ 'Notes',               # Will delete right now (SEE below)
+ 'Recent BMI',          # Will keep, need to handle (imputed, SEE below)
+ 'Recent Height cm',    # Will be removed (SEE below)
+ 'Recent Weight kg',    # Will be removed (SEE below)
+ 'Smoking Hx'           # Need to investigate (imputed, SEE below)
+ }
+"""
+# Manually removing this correlation with BMI
+data['Demographics'].drop(['Recent Height cm', 'Recent Weight kg'], axis=1, inplace=True)
+data['Demographics'].drop(['Notes'], axis=1, inplace=True)
+data['Demographics']['Smoking Hx'] = data['Demographics']['Smoking Hx'].fillna(
+    data['Demographics']['Smoking Hx'].mean())
+
+data['Demographics']['Recent BMI'] = data['Demographics']['Recent BMI'].fillna(
+    data['Demographics']['Recent BMI'].mean())
 
 _ = """
 ################################### DIAGNOSES ##################################
@@ -217,6 +240,8 @@ temp['Age_of_Complication'] = temp['Patient Id'].apply(
 
 # NOTE: This dataset is perfect
 data['Diagnoses'] = temp.copy()
+# Don't expect anything anyways in this case, all the NaNs were set to 0
+# nan_cols(data['Diagnoses'])
 
 _ = """
 ##################################### LABS #####################################
@@ -249,13 +274,23 @@ encoded_table = encoded_table[most_common_columns]
 
 # NOTE: THIS IS A PERFECT DATASET
 data['Labs'] = encoded_table.copy()
+# Don't expect anything anyways in this case, all the NaNs were set to 0
+# nan_cols(data['Labs'])
 
 _ = """
 ################################## PROCEDURES ##################################
 """
-
+""" SECTION 1 """
 temp = data['Procedures'].copy()
-temp = temp[['Patient Id', 'Code']]
+TRANSPLANT_CODES = ['0TY10Z0', '0TY00Z0', '55.69']
+# Only get transplant procedures
+transplant_procedures = temp[temp['Code'].isin(TRANSPLANT_CODES)].drop_duplicates(
+    subset=['Patient Id'], keep='first').reset_index(drop=True)
+AGE_OF_TRANSPLANT_MAPPING = transplant_procedures.set_index('Patient Id')['Age'].to_dict()
+temp = temp[['Patient Id', 'Age', 'Code', 'Description']]
+
+""" SECTION 2 """
+temp[temp['Description'].str.contains('transplant') & temp['Description'].str.contains('kidney')]['Code'].unique()
 temp['count'] = 1
 track_code_freq = temp.groupby(['Patient Id', 'Code']).agg({'count': 'count'})
 # 'Age_Of_Diagnosis': 'mean'})
@@ -263,6 +298,7 @@ track_code_freq = track_code_freq.pivot_table('count', ['Patient Id'], 'Code')
 
 # TODO: Need to find time of transplant
 
+""" SECTION 3 """
 num_nas = {}
 for col in track_code_freq.columns:
     num_nas[col] = track_code_freq[col].isna().sum() / len(track_code_freq[col])
@@ -271,15 +307,18 @@ num_nas = {col: value for col, value in num_nas.items() if value <= 0.85}
 # plt.hist(list(num_nas.values()), bins=20)
 temp = track_code_freq[list(num_nas.keys())].fillna(0.)
 temp.columns = 'CountOf_' + temp.columns
+temp.reset_index(inplace=True)
+temp['Age_of_Transplant'] = temp['Patient Id'].apply(lambda x: AGE_OF_TRANSPLANT_MAPPING.get(x, np.nan))
+temp = temp.dropna(subset=['Age_of_Transplant'], how='any')
 
 data['Procedures'] = temp.copy()
+# nan_cols(data['Procedures'])
 
 _ = """
 ################################################################################
 ########################### FINAL, PRE-MERGE DELETIONS #########################
 ################################################################################
 """
-data['Demographics'].drop(['Notes'], axis=1, inplace=True)
 
 _ = """
 ################################################################################
@@ -287,13 +326,20 @@ _ = """
 ################################################################################
 """
 
-data['MedOrders'] = remove_highly_correlated(data['MedOrders'])
-# Manually removing this correlation
-data['Demographics'].drop(['Recent Height cm', 'Recent Weight kg'], axis=1, inplace=True)
-data['Demographics'] = remove_highly_correlated(data['Demographics'], THRESHOLD=0.5)
-data['Diagnoses'] = remove_highly_correlated(data['Diagnoses'], THRESHOLD=0.5)
-data['Labs'] = remove_highly_correlated(data['Labs'], THRESHOLD=0.5)
-data['Procedures'] = remove_highly_correlated(data['Procedures'], THRESHOLD=0.5)
+KEEP_NO_MATTER_WHAT = ['Age_of_Complication', 'Age_of_Transplant', 'Current_Age', 'Deceased', 'Time_Until_Complication']
+
+data['MedOrders'] = remove_highly_correlated(data['MedOrders'], skip=KEEP_NO_MATTER_WHAT)
+data['Demographics'] = remove_highly_correlated(data['Demographics'], skip=KEEP_NO_MATTER_WHAT, THRESHOLD=0.5)
+data['Diagnoses'] = remove_highly_correlated(data['Diagnoses'], skip=KEEP_NO_MATTER_WHAT, THRESHOLD=0.5)
+data['Labs'] = remove_highly_correlated(data['Labs'], THRESHOLD=0.5, skip=KEEP_NO_MATTER_WHAT)
+data['Procedures'] = remove_highly_correlated(data['Procedures'], skip=KEEP_NO_MATTER_WHAT, THRESHOLD=0.5)
+
+# Final sanity Check
+# nan_cols(data['MedOrders'])
+# nan_cols(data['Demographics'])
+# nan_cols(data['Diagnoses'])
+# nan_cols(data['Labs'])
+# nan_cols(data['Procedures'])
 
 _ = """
 ################################################################################
@@ -303,31 +349,37 @@ _ = """
 
 """MERGE MEDICAL HISTORY + DEMOGRAPHICS"""
 merged_one = data['MedOrders'].join(data['Demographics'], how='inner', on=[
-                                    'Patient Id'], lsuffix='_DELETE', rsuffix='demo_')
+                                    'Patient Id'], lsuffix='_DELETE', rsuffix='_demo')
 merged_one.drop('Patient Id_DELETE', axis=1, inplace=True)
 
 """ MERGED FIRST_MERGED + DIAGNOSES """
 merged_two = merged_one.join(data['Diagnoses'], how='inner', on=['Patient Id'],
-                             lsuffix='_DELETE', rsuffix='demo_')
+                             lsuffix='_DELETE', rsuffix='_diagnosis')
 merged_two.drop('Patient Id_DELETE', axis=1, inplace=True)
 
 """ MERGED SECOND_MERGED + LABS """
-merged_three = merged_two.join(data['Labs'], how='inner', on=['Patient Id'])
+merged_three = merged_two.join(data['Labs'], how='inner', on=['Patient Id'],
+                               lsuffix='_DELETE', rsuffix='_labs')
+# merged_three.drop('Patient Id_DELETE', axis=1, inplace=True)
 
 """ MERGED THIRD_MERGED + PROCEDURES """  # TODO
-merged_four = merged_three.join(data['Procedures'], how='inner', on=['Patient Id'])
+merged_four = merged_three.join(data['Procedures'], how='inner', on=['Patient Id'],
+                                lsuffix='_DELETE', rsuffix='_procedures')
 
 _ = """
 ################################################################################
 ########################## FINAL, POST-MERGE DELETIONS #########################
 ################################################################################
 """
-merged_four.drop(['Patient Iddemo_', 'CountOf_nan'], axis=1, inplace=True)
+merged_four.drop(['Patient Id_demo', 'CountOf_nan', 'Patient Id_procedures',
+                  'Patient Id_diagnosis', 'Patient Id_DELETE'], axis=1, inplace=True)
+list(merged_four)
 merged_four['Age_of_Complication'] = merged_four.apply(lambda row: row['Age at Death']
-                                                       if bool(row['Deceased']) else row['Age_of_Complication'])
-
-merged_four['Time_Until_Complication'] = merged_four['Age'] - merged_four['Age_of_Complication']
-list(merged_four.columns)
+                                                       if (row['Deceased'] == 1) else row['Age_of_Complication'],
+                                                       axis=1)
+merged_four['Time_Until_Complication'] = merged_four['Age_of_Complication'] - merged_four['Age_of_Transplant']
+merged_four = merged_four[merged_four['Time_Until_Complication'] >= 0].reset_index(drop=True)
+merged_four.drop(['Age_of_Complication', 'Age_of_Transplant', 'Age at Death'], axis=1, inplace=True)
 
 _ = """
 ################################################################################
@@ -335,11 +387,10 @@ _ = """
 ################################################################################
 """
 # Final pass to collectively analyse all columns and remove high correlations
-FINAL_UNCORR = remove_highly_correlated(merged_four, THRESHOLD=0.5)
+FINAL_UNCORR = remove_highly_correlated(merged_four, skip=KEEP_NO_MATTER_WHAT, THRESHOLD=0.5)
 # REORDER COLUMNS SO `Time_Until_Complication` IS AT THE VERY END
 new_order = [c for c in list(FINAL_UNCORR) if c not in ['Patient Id',
-                                                        'Time_Until_Complication']
-             ] + ['Time_Until_Complication']
+                                                        'Time_Until_Complication']] + ['Time_Until_Complication']
 FINAL_UNCORR = FINAL_UNCORR[new_order]
 # Save
 FINAL_UNCORR.to_pickle(SAVE_PATH_FULL + '.pkl')

@@ -3,10 +3,12 @@
 # @Email:  shounak@stanford.edu
 # @Filename: models.py
 # @Last modified by:   shounak
-# @Last modified time: 2022-11-24T01:55:21-08:00
+# @Last modified time: 2022-11-24T03:50:54-08:00
 
 import pandas as pd
 from sklearn.linear_model import LinearRegression
+import matplotlib.pyplot as plt
+import scipy
 
 
 _ = """
@@ -35,14 +37,11 @@ _ = """
 
 """
 
-ALL_DATA = pd.read_csv('Data/Merged Complete/Example_Core_Dataset.csv').infer_objects()
+ALL_DATA = pd.read_csv('Data/Merged Complete/Core_Dataset.csv').infer_objects().drop('Unnamed: 0', axis=1)
 # ALL_DATA.drop('Patient Id', axis=1, inplace=True)
 TRAIN_SIZE = int(len(ALL_DATA) * TRAIN_SIZE)
-{c for c, v in ALL_DATA.isna().any().to_dict().items() if v is True}
-ALL_DATA['Notes'].unique()
+# {c for c, v in ALL_DATA.isna().any().to_dict().items() if v is True}
 
-# Just drop Notes
-# Time Until Complication for dead people should be `Age at Death` - `Transplant Date`
 
 shuffled = shuffle_data(ALL_DATA)
 TRAIN_DF = shuffled.values[:TRAIN_SIZE, :]
@@ -56,4 +55,7 @@ model.score(design_matrix, prediction_column)
 
 test_design_matrix = TEST_DF[:, :-1]
 test_prediction_column = TEST_DF[:, -1]
-model.predict()
+guesses = model.predict(test_design_matrix)
+# Visualize Performance on Test Dataset
+plt.scatter(test_prediction_column, guesses)
+slope, intercept, r_value, p_value, std_err = scipy.stats.linregress(guesses, test_prediction_column)
