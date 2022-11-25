@@ -3,13 +3,13 @@
 # @Email:  shounak@stanford.edu
 # @Filename: preprocessing.py
 # @Last modified by:   shounak
-# @Last modified time: 2022-11-24T03:43:35-08:00
+# @Last modified time: 2022-11-24T18:05:40-08:00
 
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
 from datetime import datetime
-# import seaborn as sns
+import seaborn as sns
 
 # FPATHS = {
 #     # 'Notes': 'Data/Incomplete Constituents/kds1_clinical_note-002.csv',
@@ -54,13 +54,13 @@ def cat_to_num(series):
 def remove_highly_correlated(df, THRESHOLD=0.5, skip=[]):
     corr_matrix = df.corr().abs()
     # Exploratory
-    # _ = sns.heatmap(corr_matrix)
-    # plt.hist(correlation_flat, bins=20)
+    _ = sns.heatmap(corr_matrix)
+    _ = plt.hist(corr_matrix.values.flatten(), bins=20)
     # np.quantile(correlation_flat, 0.95)
     # Select upper triangle of correlation matrix
     upper = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(np.bool))
     # Find features with correlation greater than 0.95
-    to_drop = [col for col in upper.columns if any(upper[col] > 0.5) if col not in skip]
+    to_drop = [col for col in upper.columns if any(upper[col] > THRESHOLD) if col not in skip]
     print(f'Removing {len(to_drop)} feature(s), highly-correlated.\n{to_drop}')
     return df.drop(to_drop, axis=1)
 
@@ -205,8 +205,8 @@ data['Diagnoses']['Age_Of_Diagnosis'] = data['Diagnoses']['Age']
 ppl_final_rejection = data['Diagnoses'][data['Diagnoses']['ICD10 Code'] == 'T86.11'].reset_index(drop=True)
 ppl_final_rejection.drop_duplicates(subset=['Patient Id'], keep='first', inplace=True, ignore_index=True)
 TIME_COMPLICATION_MAPPING = ppl_final_rejection.set_index('Patient Id')['Age_Of_Diagnosis'].to_dict()
-# NOTE: `VAL_FOR_NO_COMPLICATION_YES` somewhat arbitrary, just ensured nobody had this value
-VAL_FOR_NO_COMPLICATION_YES = 100
+# NOTE: `VAL_FOR_NO_COMPLICATION_YET` somewhat arbitrary, just ensured nobody had this value
+VAL_FOR_NO_COMPLICATION_YET = 100
 
 """ SEGMENT 2 """
 temp = data['Diagnoses'].copy()
@@ -235,7 +235,8 @@ temp.reset_index(inplace=True)
 """ SEGMENT 3 """
 # Now add the column we engineered:
 temp['Age_of_Complication'] = temp['Patient Id'].apply(
-    lambda x: TIME_COMPLICATION_MAPPING.get(x, VAL_FOR_NO_COMPLICATION_YES))
+    lambda x: TIME_COMPLICATION_MAPPING.get(x, VAL_FOR_NO_COMPLICATION_YET))
+temp['Had_Complication'] = temp['Age_of_Complication'].apply(lambda x: not (x == VAL_FOR_NO_COMPLICATION_YET))
 # temp['Age_of_Complication'].hist()
 
 # NOTE: This dataset is perfect
@@ -316,25 +317,20 @@ data['Procedures'] = temp.copy()
 
 _ = """
 ################################################################################
-########################### FINAL, PRE-MERGE DELETIONS #########################
-################################################################################
-"""
-
-_ = """
-################################################################################
 ################# LAST-PASS: REMOVE HIGHLY CORRELATED VARIABLES ################
 ################################################################################
 """
 
-KEEP_NO_MATTER_WHAT = ['Age_of_Complication', 'Age_of_Transplant', 'Current_Age', 'Deceased', 'Time_Until_Complication']
+KEEP_NO_MATTER_WHAT = ['Age_of_Complication', 'Age_of_Transplant', 'Current_Age',
+                       'Deceased', 'Time_Until_Complication', 'Had_Complication']
 
-data['MedOrders'] = remove_highly_correlated(data['MedOrders'], skip=KEEP_NO_MATTER_WHAT)
+data['MedOrders'] = remove_highly_correlated(data['MedOrders'], skip=KEEP_NO_MATTER_WHAT, THRESHOLD=0.5)
 data['Demographics'] = remove_highly_correlated(data['Demographics'], skip=KEEP_NO_MATTER_WHAT, THRESHOLD=0.5)
 data['Diagnoses'] = remove_highly_correlated(data['Diagnoses'], skip=KEEP_NO_MATTER_WHAT, THRESHOLD=0.5)
-data['Labs'] = remove_highly_correlated(data['Labs'], THRESHOLD=0.5, skip=KEEP_NO_MATTER_WHAT)
+data['Labs'] = remove_highly_correlated(data['Labs'], THRESHOLD=0.7, skip=KEEP_NO_MATTER_WHAT)
 data['Procedures'] = remove_highly_correlated(data['Procedures'], skip=KEEP_NO_MATTER_WHAT, THRESHOLD=0.5)
 
-# Final sanity Check
+# # Final sanity Check
 # nan_cols(data['MedOrders'])
 # nan_cols(data['Demographics'])
 # nan_cols(data['Diagnoses'])
@@ -373,13 +369,27 @@ _ = """
 """
 merged_four.drop(['Patient Id_demo', 'CountOf_nan', 'Patient Id_procedures',
                   'Patient Id_diagnosis', 'Patient Id_DELETE'], axis=1, inplace=True)
-list(merged_four)
-merged_four['Age_of_Complication'] = merged_four.apply(lambda row: row['Age at Death']
-                                                       if (row['Deceased'] == 1) else row['Age_of_Complication'],
-                                                       axis=1)
+
+
+def assign_age_complication(row):
+    # If the person had a non-death complication, keep it
+    if row['Had_Complication']:
+        assert row['Age_of_Complication'] != VAL_FOR_NO_COMPLICATION_YET
+        return row['Age_of_Complication']
+    else:
+        if row['Deceased']:
+            # If the person did not have a complication but died, their death IS the complication
+            return row['Age at Death']
+        else:
+            # If the person did not have a complication and is still alive, keep dummy value
+            # These are the unlabeled instances for the semi-supervised learning
+            assert row['Age_of_Complication'] == VAL_FOR_NO_COMPLICATION_YET
+            return row['Age_of_Complication']
+
+
+merged_four['Age_of_Complication'] = merged_four.apply(assign_age_complication, axis=1)
 merged_four['Time_Until_Complication'] = merged_four['Age_of_Complication'] - merged_four['Age_of_Transplant']
 merged_four = merged_four[merged_four['Time_Until_Complication'] >= 0].reset_index(drop=True)
-merged_four.drop(['Age_of_Complication', 'Age_of_Transplant', 'Age at Death'], axis=1, inplace=True)
 
 _ = """
 ################################################################################
@@ -387,12 +397,31 @@ _ = """
 ################################################################################
 """
 # Final pass to collectively analyse all columns and remove high correlations
-FINAL_UNCORR = remove_highly_correlated(merged_four, skip=KEEP_NO_MATTER_WHAT, THRESHOLD=0.5)
+FINAL_UNCORR = remove_highly_correlated(merged_four, skip=KEEP_NO_MATTER_WHAT, THRESHOLD=0.7)
 # REORDER COLUMNS SO `Time_Until_Complication` IS AT THE VERY END
 new_order = [c for c in list(FINAL_UNCORR) if c not in ['Patient Id',
                                                         'Time_Until_Complication']] + ['Time_Until_Complication']
 FINAL_UNCORR = FINAL_UNCORR[new_order]
+FINAL_COPY = FINAL_UNCORR.copy()
+
+""" LOGIC FOR SUPERVISED, IMPUTED VALUES """
+# FINAL_UNCORR = pd.read_csv('Data/Merged Complete/Core_Dataset.csv').infer_objects().drop('Unnamed: 0', axis=1)
+FINAL_UNCORR.drop(['Age_of_Complication', 'Age_of_Transplant',
+                  'Age at Death', 'Had_Complication'], axis=1, inplace=True)
+
 # Save
-FINAL_UNCORR.to_pickle(SAVE_PATH_FULL + '.pkl')
-FINAL_UNCORR.to_csv(SAVE_PATH_FULL + '.csv')
+FINAL_UNCORR.to_pickle(SAVE_PATH_FULL + '_SUPERVISED' + '.pkl')
+FINAL_UNCORR.to_csv(SAVE_PATH_FULL + '_SUPERVISED' + '.csv')
+
+""" LOGIC FOR SEMI-SUPERVISED, IMPUTED VALUES """
+# Can't depend on Had_Complication for final None assignment (just look for `VAL_FOR_NO_COMPLICATION_YET` value)
+FINAL_COPY['Time_Until_Complication'] = FINAL_COPY['Age_of_Complication'].apply(
+    lambda x: np.nan if x == VAL_FOR_NO_COMPLICATION_YET else x)
+FINAL_COPY.drop(['Age_of_Complication', 'Age_of_Transplant',
+                 'Age at Death', 'Had_Complication'], axis=1, inplace=True)
+
+FINAL_COPY.to_pickle(SAVE_PATH_FULL + '_SEMI-SUPERVISED' + '.pkl')
+FINAL_COPY.to_csv(SAVE_PATH_FULL + '_SEMI-SUPERVISED' + '.csv')
+
+# Number of Unlabeled instances 0.68 = FINAL_UNCORR['Time_Until_Complication'].isna().sum() / len(FINAL_UNCORR['Time_Until_Complication'])
 # EOF
