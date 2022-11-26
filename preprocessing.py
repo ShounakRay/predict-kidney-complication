@@ -3,7 +3,7 @@
 # @Email:  shounak@stanford.edu
 # @Filename: preprocessing.py
 # @Last modified by:   shounak
-# @Last modified time: 2022-11-24T18:05:40-08:00
+# @Last modified time: 2022-11-25T18:58:16-08:00
 
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -33,12 +33,14 @@ SAVE_PATH_FULL = 'Data/Merged Complete/Core_Dataset'
 
 data = {}
 for label, path in FPATHS_FULL.items():
-    data[label] = pd.read_csv(path).infer_objects()
+    data[label] = pd.read_csv(path, low_memory=False).infer_objects()
     print(f'Ingested "{label}" dataset.')
 COPY_DATA = data.copy()
 
 # data['Codebook'] maps patient names to MRN code
 # data['Notes'] has patient clininal meeting notes
+
+# TODO: Age at Death
 
 _ = """
 ################################################################################
@@ -161,7 +163,8 @@ data['Demographics']['Ethnicity'] = cat_to_num(data['Demographics']['Ethnicity']
 data['Demographics']['Smoking Hx'] = data['Demographics']['Smoking Hx'].str[0].astype(np.number)
 # Sanitation: correct current ages of people that are deceased
 data['Demographics']['Current_Age'] = data['Demographics'].apply(lambda row: row['Current_Age']
-                                                                 if row['Deceased'] == 0 else -1, axis=1)
+                                                                 if row['Deceased'] == 0 else row['Age at Death'],
+                                                                 axis=1)
 
 # NOTE: THIS IS A PERFECT DATASET
 data['Demographics'] = data['Demographics'].select_dtypes(include=np.number)
@@ -388,6 +391,7 @@ def assign_age_complication(row):
 
 
 merged_four['Age_of_Complication'] = merged_four.apply(assign_age_complication, axis=1)
+merged_four['Current_Age']
 merged_four['Time_Until_Complication'] = merged_four['Age_of_Complication'] - merged_four['Age_of_Transplant']
 merged_four = merged_four[merged_four['Time_Until_Complication'] >= 0].reset_index(drop=True)
 
@@ -422,6 +426,11 @@ FINAL_COPY.drop(['Age_of_Complication', 'Age_of_Transplant',
 
 FINAL_COPY.to_pickle(SAVE_PATH_FULL + '_SEMI-SUPERVISED' + '.pkl')
 FINAL_COPY.to_csv(SAVE_PATH_FULL + '_SEMI-SUPERVISED' + '.csv')
+
+# Rhea stuff
+# FINAL_COPY['Time_Until_Complication'].hist()
+# temp = FINAL_COPY['Time_Until_Complication'].dropna()
+# np.quantile(temp, 0.40)
 
 # Number of Unlabeled instances 0.68 = FINAL_UNCORR['Time_Until_Complication'].isna().sum() / len(FINAL_UNCORR['Time_Until_Complication'])
 # EOF

@@ -3,7 +3,7 @@
 # @Email:  shounak@stanford.edu
 # @Filename: models.py
 # @Last modified by:   shounak
-# @Last modified time: 2022-11-24T17:32:52-08:00
+# @Last modified time: 2022-11-25T15:51:09-08:00
 
 import pandas as pd
 from sklearn.linear_model import LinearRegression
@@ -35,7 +35,7 @@ _ = """
 ################################## MODEL WORK ##################################
 ################################################################################
 """
-ALL_DATA = pd.read_csv('Data/Merged Complete/Core_Dataset.csv').infer_objects().drop('Unnamed: 0', axis=1)
+ALL_DATA = pd.read_csv('Data/Merged Complete/Core_Dataset_SUPERVISED.csv').infer_objects().drop('Unnamed: 0', axis=1)
 # ALL_DATA.drop('Patient Id', axis=1, inplace=True)
 TRAIN_SIZE = int(len(ALL_DATA) * TRAIN_SIZE)
 # {c for c, v in ALL_DATA.isna().any().to_dict().items() if v is True}
