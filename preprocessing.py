@@ -3,7 +3,7 @@
 # @Email:  shounak@stanford.edu
 # @Filename: preprocessing.py
 # @Last modified by:   shounak
-# @Last modified time: 2022-11-26T00:41:02-08:00
+# @Last modified time: 2022-11-26T00:52:45-08:00
 
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -42,12 +42,9 @@ _ = """
 #                     Implicitly impacts `Time_Until_Complication` (= Age_of_Complication - Age_of_Transplant)
 VAL_FOR_NO_COMPLICATION_YET = 100
 # What is the highest PERCENTAGE of NaN values you're comfortable with per column? Used in Diagnoses and Procedures Dataset
-# TODO: Why not in demographics orders?
 DIAG_NAN_MOST = 0.85
 # # What is the highest NUMBER of NaN values you're comfortable with per column? Used in Labs
 # MAX_NUM_NAN_LABS = 1150
-# TODO: Should track lab/procedure/diagnosis count for all days LEADING UP TO COMPLICATION (TRANSPLANT or DEATH)
-# TODO: Counts should be based on after complication, not for lifetime.
 
 _ = """
 ################################################################################

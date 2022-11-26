@@ -3,7 +3,7 @@
 # @Email:  shounak@stanford.edu
 # @Filename: models.py
 # @Last modified by:   shounak
-# @Last modified time: 2022-11-26T00:46:12-08:00
+# @Last modified time: 2022-11-26T00:52:09-08:00
 
 import pandas as pd
 from sklearn.linear_model import LinearRegression
