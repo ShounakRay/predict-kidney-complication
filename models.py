@@ -3,7 +3,7 @@
 # @Email:  shounak@stanford.edu
 # @Filename: models.py
 # @Last modified by:   shounak
-# @Last modified time: 2022-11-26T00:35:51-08:00
+# @Last modified time: 2022-11-26T00:46:12-08:00
 
 import pandas as pd
 from sklearn.linear_model import LinearRegression
@@ -38,15 +38,25 @@ model = LinearRegression()
 design_matrix = TRAIN_DF[:, :-1]
 prediction_column = TRAIN_DF[:, -1]
 model.fit(design_matrix, prediction_column)
-model.score(design_matrix, prediction_column)
+# model.score(design_matrix, prediction_column) # Equiv to code below for getting r**2 value
+# Plot on training
+guesses = model.predict(design_matrix)
+# Visualize Performance on Test Dataset
+_ = plt.xlabel('TRAINING: True T_Complication')
+_ = plt.ylabel('TRAINING: Predicted T_Complication')
+_ = plt.scatter(prediction_column, guesses)
+slope, intercept, r_value, p_value, std_err = scipy.stats.linregress(guesses, prediction_column)
+print(f"r: {r_value}")
+print(f"r-sq: {r_value ** 2}")
 
 # Test Model
 test_design_matrix = TEST_DF[:, :-1]
 test_prediction_column = TEST_DF[:, -1]
 guesses = model.predict(test_design_matrix)
 # Visualize Performance on Test Dataset
-_ = plt.xlabel('True T_Complication')
-_ = plt.ylabel('Predicted T_Complication')
+_ = plt.xlabel('TESTING: True T_Complication')
+_ = plt.ylabel('TESTING: Predicted T_Complication')
 _ = plt.scatter(test_prediction_column, guesses)
 slope, intercept, r_value, p_value, std_err = scipy.stats.linregress(guesses, test_prediction_column)
-r_value ** 2
+print(f"r: {r_value}")
+print(f"r-sq: {r_value ** 2}")

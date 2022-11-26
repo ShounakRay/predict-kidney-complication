@@ -3,7 +3,7 @@
 # @Email:  shounak@stanford.edu
 # @Filename: preprocessing.py
 # @Last modified by:   shounak
-# @Last modified time: 2022-11-26T00:34:40-08:00
+# @Last modified time: 2022-11-26T00:41:02-08:00
 
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -337,12 +337,12 @@ _ = """
 # NOTE: This function also processes demographics inside
 data, DATE_COMPLICATION_MAPPING = diagnoses_transformation(data.copy())
 assert len(nan_cols(data['Diagnoses'])) == 0
-print(f"Completed Transformation for DIAGNOSES. Size: {data['Diagnoses'].shape}")
+print(f"\nCompleted Transformation for DIAGNOSES. Size: {data['Diagnoses'].shape}")
 
 # df = data['MedOrders'].copy()
 data['MedOrders'] = medication_transformation(data['MedOrders'].copy(), DATE_COMPLICATION_MAPPING)
 assert len(nan_cols(data['MedOrders'])) == 0
-print(f"\nCompleted Transformation for MEDORDERS. Size: {data['MedOrders'].shape}")
+print(f"Completed Transformation for MEDORDERS. Size: {data['MedOrders'].shape}")
 
 # data['Labs'] = data['Labs'].copy()
 data['Labs'] = labs_transformation(data['Labs'].copy(), DATE_COMPLICATION_MAPPING)
@@ -361,7 +361,7 @@ _ = """
 ################# LAST-PASS: REMOVE HIGHLY CORRELATED VARIABLES ################
 ################################################################################
 """
-
+print("\n")
 KEEP_NO_MATTER_WHAT = ['Age_of_Complication', 'Age_of_Transplant', 'Current_Age',
                        'Deceased', 'Time_Until_Complication', 'Had_Complication']
 
