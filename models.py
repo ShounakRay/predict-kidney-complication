@@ -3,24 +3,13 @@
 # @Email:  shounak@stanford.edu
 # @Filename: models.py
 # @Last modified by:   shounak
-# @Last modified time: 2022-11-25T15:51:09-08:00
+# @Last modified time: 2022-11-25T20:34:15-08:00
 
 import pandas as pd
 from sklearn.linear_model import LinearRegression
 import matplotlib.pyplot as plt
 import scipy
-
-
-_ = """
-################################################################################
-############################# FUNCTION DEFINITIONS #############################
-################################################################################
-"""
-
-
-def shuffle_data(df):
-    return df.sample(frac=1).reset_index(drop=True)
-
+from util import shuffle_data, nan_cols
 
 _ = """
 ################################################################################
@@ -39,6 +28,9 @@ ALL_DATA = pd.read_csv('Data/Merged Complete/Core_Dataset_SUPERVISED.csv').infer
 # ALL_DATA.drop('Patient Id', axis=1, inplace=True)
 TRAIN_SIZE = int(len(ALL_DATA) * TRAIN_SIZE)
 # {c for c, v in ALL_DATA.isna().any().to_dict().items() if v is True}
+
+
+nan_cols(ALL_DATA)
 
 # Create training and test data
 shuffled = shuffle_data(ALL_DATA)

@@ -3,7 +3,7 @@
 # @Email:  shounak@stanford.edu
 # @Filename: extracontent.py
 # @Last modified by:   shounak
-# @Last modified time: 2022-11-24T01:37:39-08:00
+# @Last modified time: 2022-11-25T20:14:09-08:00
 
 
 def to_hours(series):
@@ -18,6 +18,13 @@ def to_years(series):
     return series.dt.total_seconds() / (60 * 60 * 24. * 365.25)
 
 
+""" RHEA THIS BIT IS FOR YOU """
+# Rhea stuff
+# FINAL_COPY['Time_Until_Complication'].hist()
+# temp = FINAL_COPY['Time_Until_Complication'].dropna()
+# np.quantile(temp, 0.40)
+
+""" OLD TRANSPLANT STUFF """
 # merged = transplant_people.join(data['Labs'], how='inner', on=['Patient Id'],
 #                                 lsuffix='_transplant', rsuffix='_complication')
 #
@@ -34,7 +41,7 @@ def to_years(series):
 #                                                                   'Patient Id_demographics'], axis=1)
 # JOINED_FINAL.drop(['Age at Death', 'Notes', 'Patient Id'], axis=1, inplace=True)
 
-
+""" OLD DIAGNOSES STUFF """
 # only_rejected.drop(['ICD10 Code', 'Age'], axis=1, inplace=True)
 # """ONLY GET THE LAST VISIT"""
 # # Only gets the last visit (according to "Date" column)
