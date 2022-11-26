@@ -3,7 +3,7 @@
 # @Email:  shounak@stanford.edu
 # @Filename: models.py
 # @Last modified by:   shounak
-# @Last modified time: 2022-11-25T20:34:15-08:00
+# @Last modified time: 2022-11-26T00:35:51-08:00
 
 import pandas as pd
 from sklearn.linear_model import LinearRegression
@@ -15,9 +15,8 @@ _ = """
 ################################################################################
 ############################# SOME HYPER-PARAMETERS ############################
 ################################################################################
-
 """
-TRAIN_SIZE = 0.7
+TRAIN_PROPORTION = 0.7
 
 _ = """
 ################################################################################
@@ -26,11 +25,8 @@ _ = """
 """
 ALL_DATA = pd.read_csv('Data/Merged Complete/Core_Dataset_SUPERVISED.csv').infer_objects().drop('Unnamed: 0', axis=1)
 # ALL_DATA.drop('Patient Id', axis=1, inplace=True)
-TRAIN_SIZE = int(len(ALL_DATA) * TRAIN_SIZE)
-# {c for c, v in ALL_DATA.isna().any().to_dict().items() if v is True}
-
-
-nan_cols(ALL_DATA)
+TRAIN_SIZE = int(len(ALL_DATA) * TRAIN_PROPORTION)
+assert len(nan_cols(ALL_DATA)) == 0
 
 # Create training and test data
 shuffled = shuffle_data(ALL_DATA)
@@ -49,5 +45,8 @@ test_design_matrix = TEST_DF[:, :-1]
 test_prediction_column = TEST_DF[:, -1]
 guesses = model.predict(test_design_matrix)
 # Visualize Performance on Test Dataset
-plt.scatter(test_prediction_column, guesses)
+_ = plt.xlabel('True T_Complication')
+_ = plt.ylabel('Predicted T_Complication')
+_ = plt.scatter(test_prediction_column, guesses)
 slope, intercept, r_value, p_value, std_err = scipy.stats.linregress(guesses, test_prediction_column)
+r_value ** 2
