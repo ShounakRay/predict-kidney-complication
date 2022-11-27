@@ -3,7 +3,7 @@
 # @Email:  shounak@stanford.edu
 # @Filename: extracontent.py
 # @Last modified by:   shounak
-# @Last modified time: 2022-11-25T20:14:09-08:00
+# @Last modified time: 2022-11-26T12:48:08-08:00
 
 
 def to_hours(series):
@@ -16,6 +16,23 @@ def to_days(series):
 
 def to_years(series):
     return series.dt.total_seconds() / (60 * 60 * 24. * 365.25)
+
+
+""" MODEL EDA """
+# # Plot Histogram for Understanding
+# axarr = ALL_DATA.hist(bins=20, figsize=(100, 100))
+# for ax in axarr.flatten():
+#     ax.set_xlabel("")
+#     ax.set_ylabel("")
+# plt.savefig('Images/Data_Histogram.png')
+
+""" NORMALIZATION """
+# def NormalizeData(data):
+#     # https://stackoverflow.com/questions/18380419/normalization-to-bring-in-the-range-of-0-1
+#     return (data - np.min(data)) / (np.max(data) - np.min(data))
+# # Normalize Errors
+# normalized_train_errs = NormalizeData(list(training_std_err.values()))
+# normalized_test_errs = NormalizeData(list(testing_std_err.values()))
 
 
 """ RHEA THIS BIT IS FOR YOU """
