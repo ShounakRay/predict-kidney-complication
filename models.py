@@ -3,7 +3,7 @@
 # @Email:  shounak@stanford.edu
 # @Filename: models.py
 # @Last modified by:   shounak
-# @Last modified time: 2022-11-26T19:54:29-08:00
+# @Last modified time: 2022-11-26T22:09:27-08:00
 
 import pandas as pd
 from sklearn.linear_model import LinearRegression
@@ -298,6 +298,17 @@ r_test, r_sq_test, std_err_test, rmse_test, _ = test_model(model, BETTER_TEST_DF
 
 """ Now we're going to double check our results using CROSS VALIDATION """
 training_results, testing_results = really_check_single(BETTER_DATA, iters=1000, prop=0.6, plot=False)
+avg_r_train, avg_r_sq_train, avg_std_err_train, avg_rmse_train = (training_results[:, 0].mean(),
+                                                                  training_results[:, 1].mean(),
+                                                                  training_results[:, 2].mean(),
+                                                                  training_results[:, 3].mean())
+avg_r_test, avg_r_sq_test, avg_std_err_test, avg_rmse_test = (testing_results[:, 0].mean(),
+                                                              testing_results[:, 1].mean(),
+                                                              testing_results[:, 2].mean(),
+                                                              testing_results[:, 3].mean())
+
+"""Original Results"""
+training_results, testing_results = really_check_single(ALL_DATA, iters=10, prop=0.7, plot=False)
 avg_r_train, avg_r_sq_train, avg_std_err_train, avg_rmse_train = (training_results[:, 0].mean(),
                                                                   training_results[:, 1].mean(),
                                                                   training_results[:, 2].mean(),
