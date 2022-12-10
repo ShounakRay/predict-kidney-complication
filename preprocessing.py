@@ -3,7 +3,7 @@
 # @Email:  shounak@stanford.edu
 # @Filename: preprocessing.py
 # @Last modified by:   shounak
-# @Last modified time: 2022-11-26T11:35:51-08:00
+# @Last modified time: 2022-12-08T21:22:28-08:00
 
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -418,6 +418,14 @@ new_order = [c for c in list(FINAL_UNCORR) if c not in ['Patient Id',
 FINAL_UNCORR = FINAL_UNCORR[new_order]
 print("\nCompleted last-pass construction of prediction variable + final correlation check.")
 
+list(FINAL_UNCORR)
+
+"""
+TODO:
+– Code in duplicate columns
+– Removed Deceased column
+– MaxAbsScaler()
+"""
 
 _ = """
 ################################################################################

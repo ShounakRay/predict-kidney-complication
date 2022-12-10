@@ -3,16 +3,20 @@
 # @Email:  shounak@stanford.edu
 # @Filename: models.py
 # @Last modified by:   shounak
-# @Last modified time: 2022-11-26T22:09:27-08:00
+# @Last modified time: 2022-12-10T14:24:12-08:00
 
 import pandas as pd
 from sklearn.linear_model import LinearRegression
 import matplotlib.pyplot as plt
 from util import shuffle_data, nan_cols, _feed_through_model, split_data
 from sklearn.preprocessing import StandardScaler
-from sklearn.pipeline import make_pipeline
+# from sklearn.pipeline import make_pipeline
 import numpy as np
+# import icd10
 import json
+# import requests
+from bs4 import BeautifulSoup
+# from collections import Counter
 
 from sklearn.model_selection import KFold
 from sklearn.model_selection import cross_val_score
@@ -188,8 +192,10 @@ def load_check_single_70():
     return np.array(training_results), np.array(testing_results)
 
 
+def get_procedure_code(code):
+    BeautifulSoup(data).find
+
 # training_results, testing_results = load_check_single_70()
-#
 #
 # def visualize_check_single(training_results, testing_results):
 #     # _ = plt.hist(testing_results[:, 2], bins=20)
@@ -229,6 +235,7 @@ ALL_DATA = shuffle_data(ALL_DATA)
 # Standardization
 arr = ALL_DATA.values
 scaler = StandardScaler()
+# scaler = MaxAbsScaler()
 scaler.fit(arr)
 ALL_DATA = pd.DataFrame(scaler.transform(arr))
 last_col = list(ALL_DATA)[-1]
@@ -236,6 +243,7 @@ ALL_DATA['PRED'] = ALL_DATA[last_col]
 ALL_DATA.drop(last_col, axis=1, inplace=True)
 
 PRED_RANGE = (ALL_DATA['PRED'].min(), ALL_DATA['PRED'].max())
+
 
 _ = """
 ################################################################################
@@ -289,12 +297,21 @@ error_analysis(training_tracker1=training_rmse, test_tracker1=testing_rmse, metr
                training_metric2=training_std_err, testing_metric2=testing_std_err, metric2='Std. Error',
                xlabel='Percent Examples in Training Set', xline=0.6, save=True)
 
+BETTER_DATA.to_csv('Data/Better_Data.csv')
+
 """ Now we're going to double check our results on a single run """
 BETTER_TRAIN_DF, BETTER_TEST_DF = split_data(BETTER_DATA.copy(), 0.6)
 # Train model
 model = init_model()
 r_train, r_sq_train, std_err_train, rmse_train, _ = train_model(model, BETTER_TRAIN_DF, plot=True)
 r_test, r_sq_test, std_err_test, rmse_test, _ = test_model(model, BETTER_TEST_DF, plot=True)
+
+""" FEATURE IMPORTANCE """
+# feature_importances = dict(zip(list(range(model.coef_.shape[0])), abs(model.coef_)))
+# linreg_ft_imps = dict(zip(mapping.values(), feature_importances.values()))
+# _ = plt.hist(linreg_ft_imps.values(), bins=20)
+# top_percentile = np.percentile(list(linreg_ft_imps.values()), 75)
+# [ft for ft, imp in linreg_ft_imps.items() if imp >= top_percentile]
 
 """ Now we're going to double check our results using CROSS VALIDATION """
 training_results, testing_results = really_check_single(BETTER_DATA, iters=1000, prop=0.6, plot=False)
