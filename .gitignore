@@ -130,3 +130,6 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+LinReg/.DS_Store
+.DS_Store
+LinReg/Images/.DS_Store
